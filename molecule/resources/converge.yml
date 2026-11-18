@@ -1,0 +1,28 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Каталог ролей рядом с playbook
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/roles"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Опубликовать роль под именем auditd
+      ansible.builtin.file:
+        src: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        dest: "{{ playbook_dir }}/roles/auditd"
+        state: link
+        force: true
+      delegate_to: localhost
+      become: false
+      run_once: true
+  tasks:
+    - name: Запустить роль auditd
+      ansible.builtin.include_role:
+        name: auditd

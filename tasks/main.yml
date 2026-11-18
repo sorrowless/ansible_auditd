@@ -1,0 +1,55 @@
+---
+- name: Проверить поддерживаемую ОС
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution in auditd_supported_distributions
+      - ansible_distribution_version in auditd_supported_versions
+    fail_msg: >-
+      Роль auditd поддерживает Ubuntu {{ auditd_supported_versions | join(', ') }}.
+      Получено: {{ ansible_distribution }} {{ ansible_distribution_version }}.
+
+- name: Проверить имена профилей
+  ansible.builtin.assert:
+    that:
+      - (auditd_profiles | difference(auditd_allowed_profiles) | length) == 0
+    fail_msg: >-
+      Неизвестные профили: {{ auditd_profiles | difference(auditd_allowed_profiles) | join(', ') }}.
+      Допустимы: {{ auditd_allowed_profiles | join(', ') }}.
+
+- name: Установить auditd
+  ansible.builtin.import_tasks: install.yml
+
+- name: Спросить состояние подсистемы audit
+  ansible.builtin.command:
+    argv: [auditctl, -s]
+  register: auditd_auditctl_status
+  changed_when: false
+  failed_when: false
+
+- name: Зафиксировать поддержку audit ядром
+  ansible.builtin.set_fact:
+    auditd_kernel_unsupported: >-
+      {{
+        (auditd_auditctl_status.rc | default(127) != 0)
+        and (auditd_auditctl_blob is search(auditd_kernel_error_tokens | join('|')))
+      }}
+  vars:
+    auditd_auditctl_blob: >-
+      {{
+        (
+          (auditd_auditctl_status.stderr | default(''))
+          ~ ' '
+          ~ (auditd_auditctl_status.stdout | default(''))
+          ~ ' '
+          ~ (auditd_auditctl_status.msg | default(''))
+        ) | lower
+      }}
+
+- name: Настроить правила
+  ansible.builtin.import_tasks: rules.yml
+
+- name: Настроить auditd.conf
+  ansible.builtin.import_tasks: config.yml
+
+- name: Включить и запустить auditd
+  ansible.builtin.import_tasks: service.yml

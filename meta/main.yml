@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  author: sorrowless
+  namespace: sorrowless
+  role_name: auditd
+  description: Install and configure auditd for Ubuntu LTS baselines and optional PCI DSS / GOST R 57580.1 profiles.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+        - resolute
+  galaxy_tags:
+    - security
+    - audit
+    - auditd
+    - pci
+    - compliance
+
+dependencies: []

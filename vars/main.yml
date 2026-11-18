@@ -1,0 +1,36 @@
+---
+auditd_supported_distributions:
+  - Ubuntu
+
+auditd_supported_versions:
+  - "22.04"
+  - "24.04"
+  - "26.04"
+
+auditd_allowed_profiles:
+  - pci_dss
+  - gost_57580
+
+auditd_rules_dir: /etc/audit/rules.d
+auditd_conf_path: /etc/audit/auditd.conf
+auditd_baseline_rules_path: /etc/audit/rules.d/zz-10-baseline.rules
+auditd_pci_rules_path: /etc/audit/rules.d/zz-50-pci-dss.rules
+auditd_gost_rules_path: /etc/audit/rules.d/zz-60-gost-57580.rules
+auditd_local_rules_path: /etc/audit/rules.d/zz-90-local.rules
+auditd_stock_rules_path: /etc/audit/rules.d/audit.rules
+auditd_immutable_rules_path: /etc/audit/rules.d/zz-99-immutable.rules
+
+auditd_log_dir: /var/log/audit
+auditd_log_file: /var/log/audit/audit.log
+
+# Сообщения auditctl/auditd, при которых старт в контейнере не валит плейбук.
+auditd_kernel_error_tokens:
+  - not supported
+  - operation not permitted
+  - permission denied
+  - function not implemented
+  - address family not supported
+  - no such file
+  - error while processing parameters
+  - error sending
+  - unable to set initial audit

@@ -1,0 +1,19 @@
+#!/usr/bin/env ansible-playbook
+#
+# Установка и настройка auditd. Роль меняет пакет, правила и unit на целевых хостах.
+#
+# Каталог репозитория называется sorrowless.auditd, Ansible не принимает точку
+# в имени роли. Перед запуском сделайте symlink:
+#
+#   make link
+#   ANSIBLE_ROLES_PATH=.cache/roles ./run-auditd.yml -i inventory.yml
+#
+#   ./run-auditd.yml -i inventory.yml -l web-01,web-02
+#
+---
+- name: Установить и настроить auditd
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: auditd

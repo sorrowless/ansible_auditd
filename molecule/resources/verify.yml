@@ -1,0 +1,169 @@
+---
+- name: Verify auditd
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Пакет auditd установлен
+      ansible.builtin.command:
+        argv: [dpkg-query, -W, "-f=${Version}", auditd]
+      register: auditd_pkg
+      changed_when: false
+
+    - name: Baseline-правила на месте
+      ansible.builtin.slurp:
+        src: /etc/audit/rules.d/zz-10-baseline.rules
+      register: auditd_baseline_raw
+
+    - name: Разобрать baseline
+      ansible.builtin.set_fact:
+        auditd_baseline_text: "{{ auditd_baseline_raw.content | b64decode }}"
+
+    - name: Baseline закрывает AUD-01
+      ansible.builtin.assert:
+        that:
+          - "'/etc/passwd' in auditd_baseline_text"
+          - "'/etc/shadow' in auditd_baseline_text"
+          - "'/etc/sudoers' in auditd_baseline_text"
+          - >-
+            'adjtimex' in auditd_baseline_text
+            or 'settimeofday' in auditd_baseline_text
+            or 'clock_settime' in auditd_baseline_text
+            or 'time-change' in auditd_baseline_text
+        fail_msg: "{{ auditd_baseline_text }}"
+
+    - name: Unit auditd enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, auditd.service]
+      register: auditd_enabled
+      changed_when: false
+
+    - name: Unit enabled проходит
+      ansible.builtin.assert:
+        that:
+          - auditd_enabled.stdout | trim in ['enabled', 'enabled-runtime', 'alias', 'indirect']
+        fail_msg: "{{ auditd_enabled.stdout }} / {{ auditd_enabled.stderr }}"
+
+    - name: Спросить auditctl
+      ansible.builtin.command:
+        argv: [auditctl, -s]
+      register: auditd_auditctl
+      changed_when: false
+      failed_when: false
+
+    - name: Зафиксировать поддержку ядра
+      ansible.builtin.set_fact:
+        auditd_kernel_ok: "{{ auditd_auditctl.rc == 0 }}"
+        auditd_kernel_unsupported: >-
+          {{
+            (auditd_auditctl.rc != 0)
+            and (auditd_auditctl_blob is search(auditd_verify_error_tokens | join('|')))
+          }}
+      vars:
+        auditd_verify_error_tokens:
+          - not supported
+          - operation not permitted
+          - permission denied
+          - function not implemented
+          - address family not supported
+          - no such file
+          - error while processing parameters
+          - error sending
+          - unable to set initial audit
+        auditd_auditctl_blob: >-
+          {{
+            (
+              (auditd_auditctl.stderr | default(''))
+              ~ ' '
+              ~ (auditd_auditctl.stdout | default(''))
+            ) | lower
+          }}
+
+    - name: Демон запущен или ядро не поддерживает audit
+      ansible.builtin.assert:
+        that:
+          - (auditd_kernel_ok | bool) or (auditd_kernel_unsupported | bool)
+        fail_msg: >-
+          auditctl rc={{ auditd_auditctl.rc }}
+          stdout={{ auditd_auditctl.stdout }}
+          stderr={{ auditd_auditctl.stderr }}
+
+    - name: Проверить активность unit при поддержке ядра
+      ansible.builtin.command:
+        argv: [systemctl, is-active, auditd.service]
+      register: auditd_active
+      changed_when: false
+      when: auditd_kernel_ok | bool
+
+    - name: Unit active при поддержке ядра
+      ansible.builtin.assert:
+        that:
+          - auditd_active.stdout | trim == 'active'
+      when: auditd_kernel_ok | bool
+
+    - name: Когда профили ожидаются — файлы на месте
+      when: (auditd_expect_profiles | default(false)) | bool
+      block:
+        - name: Прочитать правила профилей
+          ansible.builtin.slurp:
+            src: "{{ item }}"
+          loop:
+            - /etc/audit/rules.d/zz-50-pci-dss.rules
+            - /etc/audit/rules.d/zz-60-gost-57580.rules
+            - /etc/audit/rules.d/zz-90-local.rules
+          register: auditd_profile_files
+
+        - name: Профили и local содержат ожидаемые маркеры
+          ansible.builtin.assert:
+            that:
+              - "'pci-audit-log' in (auditd_profile_files.results[0].content | b64decode)"
+              - "'gost-auth' in (auditd_profile_files.results[1].content | b64decode)"
+              - "'/opt/molecule-extra' in (auditd_profile_files.results[2].content | b64decode)"
+              - "'/var/lib/molecule-chd' in (auditd_profile_files.results[0].content | b64decode)"
+
+        - name: Прочитать auditd.conf
+          ansible.builtin.slurp:
+            src: /etc/audit/auditd.conf
+          register: auditd_conf_raw
+
+        - name: Профили выставили ключи auditd.conf
+          ansible.builtin.assert:
+            that:
+              - conf is search('(?m)^\\s*log_format\\s*=\\s*ENRICHED\\s*$')
+              - conf is search('(?m)^\\s*max_log_file_action\\s*=\\s*keep_logs\\s*$')
+            fail_msg: "{{ conf }}"
+          vars:
+            conf: "{{ auditd_conf_raw.content | b64decode }}"
+
+        - name: Права журнала
+          ansible.builtin.stat:
+            path: /var/log/audit/audit.log
+          register: auditd_log_stat
+
+        - name: Журнал защищён
+          ansible.builtin.assert:
+            that:
+              - auditd_log_stat.stat.exists
+              - auditd_log_stat.stat.mode == '0640'
+              - auditd_log_stat.stat.pw_name == 'root'
+              - auditd_log_stat.stat.gr_name == 'adm'
+
+    - name: Когда профили не ожидаются — файлов профилей нет
+      when: not ((auditd_expect_profiles | default(false)) | bool)
+      block:
+        - name: Статистика файлов профилей
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          loop:
+            - /etc/audit/rules.d/zz-50-pci-dss.rules
+            - /etc/audit/rules.d/zz-60-gost-57580.rules
+            - /etc/audit/rules.d/zz-90-local.rules
+          register: auditd_absent_profiles
+
+        - name: Файлов профилей нет
+          ansible.builtin.assert:
+            that:
+              - not (item.stat.exists | default(false))
+          loop: "{{ auditd_absent_profiles.results }}"
+          loop_control:
+            label: "{{ item.item }}"

@@ -1,0 +1,51 @@
+---
+argument_specs:
+  main:
+    short_description: Устанавливает и настраивает auditd на Ubuntu.
+    options:
+      auditd_profiles:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: >-
+          Дополнительные профили правил. Допустимы pci_dss и gost_57580
+          в любой комбинации. Пустой список оставляет только baseline для AUD-01.
+      auditd_extra_rules:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Дополнительные строки правил в zz-90-local.rules.
+      auditd_config:
+        type: dict
+        required: false
+        default: {}
+        description: >-
+          Ключи auditd.conf. Перекрывают значения профилей. Пустой словарь
+          не меняет файл, если профили не заданы.
+      auditd_immutable:
+        type: bool
+        required: false
+        default: false
+        description: >-
+          Добавить -e 2 последней строкой правил. После загрузки правила
+          нельзя менять до перезагрузки.
+      auditd_pci_data_paths:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: >-
+          Пути с карточными данными для профиля pci_dss (PCI DSS 10.2.1.1).
+          Пустой список ничего не добавляет.
+      auditd_package:
+        type: str
+        required: false
+        default: auditd
+        description: Имя пакета auditd.
+      auditd_service:
+        type: str
+        required: false
+        default: auditd
+        description: Имя systemd-unit.

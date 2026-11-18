@@ -1,0 +1,49 @@
+---
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: docker
+platforms:
+  - name: instance
+    image: auditd-ubuntu2404:local
+    pull: false
+    pre_build_image: true
+    override_command: false
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    capabilities:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - AUDIT_CONTROL
+      - AUDIT_WRITE
+    security_opts:
+      - apparmor=unconfined
+      - seccomp=unconfined
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_STRATEGY: linear
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      stdout_callback: yaml
+  inventory:
+    host_vars:
+      instance:
+        ansible_python_interpreter: /usr/bin/python3
+        auditd_profiles:
+          - pci_dss
+          - gost_57580
+        auditd_pci_data_paths:
+          - /var/lib/molecule-chd
+        auditd_extra_rules:
+          - -w /opt/molecule-extra -p wa -k molecule-extra
+        auditd_expect_profiles: true
+  playbooks:
+    converge: ../resources/converge.yml
+    verify: ../resources/verify.yml
+verifier:
+  name: ansible

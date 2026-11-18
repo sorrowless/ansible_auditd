@@ -1,0 +1,3 @@
+---
+- name: Настроить auditd
+  ansible.builtin.import_playbook: run-auditd.yml

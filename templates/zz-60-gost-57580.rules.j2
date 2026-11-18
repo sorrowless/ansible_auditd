@@ -1,0 +1,63 @@
+##
+## GOST R 57580.1-2017 — стандартный уровень, процесс регистрации событий ЗИ
+## Managed by sorrowless.auditd — do not edit by hand
+##
+
+## Попытки аутентификации и сессии
+-w /var/log/faillog -p wa -k gost-auth
+-w /var/log/lastlog -p wa -k gost-auth
+-w /var/log/tallylog -p wa -k gost-auth
+-w /var/run/faillock/ -p wa -k gost-auth
+-w /var/log/wtmp -p wa -k gost-session
+-w /var/log/btmp -p wa -k gost-session
+-w /var/run/utmp -p wa -k gost-session
+
+## Отказы в доступе
+-a always,exit -F arch=b64 -S open,openat,openat2,creat -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k gost-access
+-a always,exit -F arch=b64 -S open,openat,openat2,creat -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k gost-access
+{% if ansible_architecture == 'x86_64' %}
+-a always,exit -F arch=b32 -S open,openat,openat2,creat -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k gost-access
+-a always,exit -F arch=b32 -S open,openat,openat2,creat -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k gost-access
+{% endif %}
+
+## Действия привилегированных пользователей
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k gost-priv
+{% if ansible_architecture == 'x86_64' %}
+-a always,exit -F arch=b32 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k gost-priv
+{% endif %}
+
+## Изменение учётных записей и прав
+-w /etc/passwd -p wa -k gost-identity
+-w /etc/shadow -p wa -k gost-identity
+-w /etc/group -p wa -k gost-identity
+-w /etc/gshadow -p wa -k gost-identity
+-w /etc/security/ -p wa -k gost-identity
+-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat,chown,fchown,lchown,fchownat -F auid>=1000 -F auid!=4294967295 -k gost-perm-mod
+{% if ansible_architecture == 'x86_64' %}
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat,chown,fchown,lchown,fchownat -F auid>=1000 -F auid!=4294967295 -k gost-perm-mod
+{% endif %}
+
+## Изменение настроек защиты
+-w /etc/pam.d/ -p wa -k gost-security-config
+-w /etc/ssh/sshd_config -p wa -k gost-security-config
+-w /etc/ssh/sshd_config.d -p wa -k gost-security-config
+-w /etc/sudoers -p wa -k gost-security-config
+-w /etc/sudoers.d -p wa -k gost-security-config
+-w /etc/sysctl.conf -p wa -k gost-security-config
+-w /etc/sysctl.d -p wa -k gost-security-config
+-w /etc/audit/ -p wa -k gost-security-config
+-w /etc/libaudit.conf -p wa -k gost-security-config
+
+## Старт и остановка подсистемы регистрации
+-w /var/log/audit/ -p wa -k gost-audit-log
+-w /lib/systemd/system/auditd.service -p wa -k gost-audit-lifecycle
+-w /usr/sbin/auditctl -p x -k gost-audit-lifecycle
+-w /usr/sbin/auditd -p x -k gost-audit-lifecycle
+-w /usr/sbin/augenrules -p x -k gost-audit-lifecycle
+
+## Смена времени
+-a always,exit -F arch=b64 -S adjtimex,settimeofday -S clock_settime -k gost-time-change
+{% if ansible_architecture == 'x86_64' %}
+-a always,exit -F arch=b32 -S adjtimex,settimeofday -S clock_settime -k gost-time-change
+{% endif %}
+-w /etc/localtime -p wa -k gost-time-change

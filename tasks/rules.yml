@@ -1,0 +1,124 @@
+---
+- name: Прочитать штатный файл правил
+  ansible.builtin.slurp:
+    src: "{{ auditd_stock_rules_path }}"
+  register: auditd_stock_rules_slurp
+  failed_when: false
+
+- name: Закомментировать -e 2 в штатном файле
+  ansible.builtin.replace:
+    path: "{{ auditd_stock_rules_path }}"
+    regexp: '^(?!\s*#)\s*-e\s+2\b.*$'
+    replace: '# -e 2  # disabled by sorrowless.auditd'
+  when:
+    - auditd_stock_rules_slurp.content is defined
+    - (auditd_stock_rules_slurp.content | b64decode) is search('(?m)^(?!\\s*#)\\s*-e\\s+2\\b')
+  notify: reload audit rules
+
+- name: Разложить baseline-правила
+  ansible.builtin.template:
+    src: zz-10-baseline.rules.j2
+    dest: "{{ auditd_baseline_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: reload audit rules
+
+- name: Найти setuid и setgid для профиля PCI DSS
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      for d in /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin; do
+        if [ -d "$d" ]; then
+          find "$d" -xdev -type f \( -perm -4000 -o -perm -2000 \) 2>/dev/null || true
+        fi
+      done
+  args:
+    executable: /bin/bash
+  register: auditd_pci_privileged_find
+  changed_when: false
+  when: "'pci_dss' in auditd_profiles"
+
+- name: Зафиксировать привилегированные бинарники PCI DSS
+  ansible.builtin.set_fact:
+    auditd_pci_privileged_bins: >-
+      {{
+        (auditd_pci_privileged_find.stdout_lines | default([]))
+        | select('match', '^/')
+        | list
+        | unique
+        | sort
+      }}
+  when: "'pci_dss' in auditd_profiles"
+
+- name: Разложить правила PCI DSS
+  ansible.builtin.template:
+    src: zz-50-pci-dss.rules.j2
+    dest: "{{ auditd_pci_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  when: "'pci_dss' in auditd_profiles"
+  notify: reload audit rules
+
+- name: Убрать правила PCI DSS
+  ansible.builtin.file:
+    path: "{{ auditd_pci_rules_path }}"
+    state: absent
+  when: "'pci_dss' not in auditd_profiles"
+  notify: reload audit rules
+
+- name: Разложить правила ГОСТ Р 57580.1
+  ansible.builtin.template:
+    src: zz-60-gost-57580.rules.j2
+    dest: "{{ auditd_gost_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  when: "'gost_57580' in auditd_profiles"
+  notify: reload audit rules
+
+- name: Убрать правила ГОСТ Р 57580.1
+  ansible.builtin.file:
+    path: "{{ auditd_gost_rules_path }}"
+    state: absent
+  when: "'gost_57580' not in auditd_profiles"
+  notify: reload audit rules
+
+- name: Разложить локальные правила
+  ansible.builtin.template:
+    src: zz-90-local.rules.j2
+    dest: "{{ auditd_local_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  when: auditd_extra_rules | length > 0
+  notify: reload audit rules
+
+- name: Убрать локальные правила
+  ansible.builtin.file:
+    path: "{{ auditd_local_rules_path }}"
+    state: absent
+  when: auditd_extra_rules | length == 0
+  notify: reload audit rules
+
+- name: Разложить immutable-флаг
+  ansible.builtin.copy:
+    dest: "{{ auditd_immutable_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+    content: |
+      ##
+      ## Make the configuration immutable — reboot required to change rules
+      ##
+      -e 2
+  when: auditd_immutable | bool
+  notify: reload audit rules
+
+- name: Убрать immutable-флаг
+  ansible.builtin.file:
+    path: "{{ auditd_immutable_rules_path }}"
+    state: absent
+  when: not (auditd_immutable | bool)
+  notify: reload audit rules

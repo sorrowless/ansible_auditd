@@ -1,0 +1,39 @@
+---
+- name: Собрать итоговые ключи auditd.conf
+  ansible.builtin.set_fact:
+    auditd_effective_config: >-
+      {{
+        (
+          (auditd_profiles | length > 0) | ternary(auditd_profile_config, {})
+        ) | combine(auditd_config | default({}))
+      }}
+
+- name: Выставить ключи auditd.conf
+  ansible.builtin.lineinfile:
+    path: "{{ auditd_conf_path }}"
+    regexp: '^\s*#?\s*{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+    create: false
+  loop: "{{ auditd_effective_config | dict2items }}"
+  when: auditd_effective_config | length > 0
+  notify: reload auditd config
+
+- name: Защитить каталог журнала
+  ansible.builtin.file:
+    path: "{{ auditd_log_dir }}"
+    state: directory
+    owner: root
+    group: adm
+    mode: "0750"
+  when: auditd_profiles | length > 0 or (auditd_config | default({}) | length > 0)
+
+- name: Защитить файл журнала
+  ansible.builtin.file:
+    path: "{{ auditd_log_file }}"
+    state: touch
+    owner: root
+    group: adm
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  when: auditd_profiles | length > 0 or (auditd_config | default({}) | length > 0)

@@ -1,0 +1,16 @@
+##
+## Baseline rules for host_audit AUD-01
+## Managed by sorrowless.auditd — do not edit by hand
+##
+-w /etc/passwd -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/sudoers -p wa -k sudoers
+-w /etc/sudoers.d -p wa -k sudoers
+-a always,exit -F arch=b64 -S adjtimex,settimeofday -S clock_settime -k time-change
+{% if ansible_architecture == 'x86_64' %}
+-a always,exit -F arch=b32 -S adjtimex,settimeofday -S clock_settime -k time-change
+{% endif %}
+-w /etc/ssh/sshd_config -p wa -k sshd
+-w /etc/ssh/sshd_config.d -p wa -k sshd

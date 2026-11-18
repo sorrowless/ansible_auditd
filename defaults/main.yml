@@ -1,0 +1,30 @@
+---
+# Профили: pci_dss, gost_57580. Пустой список — только baseline под AUD-01.
+auditd_profiles: []
+
+# Дополнительные строки правил в /etc/audit/rules.d/zz-90-local.rules.
+auditd_extra_rules: []
+
+# Ключи auditd.conf. Перекрывают значения профилей.
+auditd_config: {}
+
+# -e 2 в конце правил. После загрузки правила нельзя менять до перезагрузки.
+auditd_immutable: false
+
+# Пути с карточными данными для профиля pci_dss (PCI DSS 10.2.1.1).
+auditd_pci_data_paths: []
+
+auditd_package: auditd
+auditd_service: auditd
+
+# Параметры auditd.conf, которые выставляют профили. auditd_config перекрывает.
+auditd_profile_config:
+  log_format: ENRICHED
+  max_log_file_action: keep_logs
+  num_logs: "10"
+  space_left: "75"
+  space_left_action: SYSLOG
+  admin_space_left: "50"
+  admin_space_left_action: SINGLE
+  disk_full_action: SYSLOG
+  disk_error_action: SYSLOG

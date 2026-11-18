@@ -1,0 +1,29 @@
+---
+- name: Включить unit auditd
+  ansible.builtin.systemd:
+    name: "{{ auditd_service }}"
+    enabled: true
+    daemon_reload: true
+
+- name: Запустить auditd
+  ansible.builtin.systemd:
+    name: "{{ auditd_service }}"
+    state: started
+  register: auditd_start_result
+  failed_when: >-
+    auditd_start_result is failed
+    and not (auditd_kernel_unsupported | default(false) | bool)
+
+- name: Узнать PID auditd
+  ansible.builtin.command:
+    argv: [systemctl, show, "-p", "MainPID", "--value", "{{ auditd_service }}.service"]
+  register: auditd_main_pid
+  changed_when: false
+  failed_when: false
+
+- name: Зафиксировать PID auditd
+  ansible.builtin.set_fact:
+    auditd_pid: "{{ auditd_main_pid.stdout | default('') | trim }}"
+
+- name: Сбросить handlers после настройки
+  ansible.builtin.meta: flush_handlers

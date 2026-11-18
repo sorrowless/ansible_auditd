@@ -1,0 +1,30 @@
+---
+- name: Reload auditd rules
+  ansible.builtin.command:
+    argv: [augenrules, --load]
+  listen: reload audit rules
+  register: auditd_augenrules_result
+  failed_when: >-
+    auditd_augenrules_result.rc != 0
+    and not (
+      (auditd_kernel_unsupported | default(false) | bool)
+      or (
+        (
+          (auditd_augenrules_result.stderr | default(''))
+          ~ ' '
+          ~ (auditd_augenrules_result.stdout | default(''))
+        ) | lower is search(auditd_kernel_error_tokens | join('|'))
+      )
+    )
+  changed_when: auditd_augenrules_result.rc == 0
+
+- name: Signal auditd config
+  ansible.builtin.command:
+    argv: [kill, -HUP, "{{ auditd_pid }}"]
+  listen: reload auditd config
+  when:
+    - auditd_pid is defined
+    - auditd_pid | length > 0
+    - not (auditd_kernel_unsupported | default(false) | bool)
+  failed_when: false
+  changed_when: true

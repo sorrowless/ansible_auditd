@@ -1,0 +1,10 @@
+---
+- name: Обновить индекс пакетов
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Установить пакет auditd
+  ansible.builtin.apt:
+    name: "{{ auditd_package }}"
+    state: present
